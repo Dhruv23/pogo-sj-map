@@ -1,0 +1,38 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtualenv
+venv/
+env/
+ENV/
+.venv/
+.pip-wheel-metadata/
+
+# Flask server debug files
+instance/
+*.log
+
+# Environment variables / secrets
+.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Replit / Jupyter
+*.ipynb
+.replit/
+*.swp
+
+# MacOS junk
+.Spotlight-V100
+.Trashes
