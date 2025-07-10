@@ -194,7 +194,7 @@ def update_spawns():
         if parsed:
             if all(existing["lat"] != parsed["lat"] or existing["lon"] != parsed["lon"] for existing in active_spawns):
                 new_spawns.append(parsed)
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(local_tz)
     active_spawns = [s for s in active_spawns if s["expires"] > now] + new_spawns
 
 
