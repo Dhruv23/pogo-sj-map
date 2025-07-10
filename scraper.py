@@ -69,8 +69,15 @@ function updateMap() {
             iconUrl: spawn.icon,
             iconSize: [48, 48]
           });
-          const timeLabel = spawn.expires.replace("GMT", "PST");
-          const popup = `<b>${spawn.name}</b><br>Expires at: ${new Date(spawn.expires).toLocaleString("en-US", { timeZone: "America/Los_Angeles", timeZoneName: "short" })}<br><a href="https://maps.apple.com/?saddr=${userLat},${userLon}&daddr=${spawn.lat},${spawn.lon}" target="_blank">Apple Maps Route</a>`;
+          const expireDate = new Date(spawn.expires).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZone: "America/Los_Angeles",
+            timeZoneName: "short"
+          });
+          const popup = `<b>${spawn.name}</b><br>Expires at: ${expireDate}<br><a href="https://maps.apple.com/?saddr=${userLat},${userLon}&daddr=${spawn.lat},${spawn.lon}" target="_blank">Apple Maps Route</a>`;
+
           const marker = L.marker([spawn.lat, spawn.lon], { icon }).bindPopup(popup).addTo(map);
           markers.push(marker);
         });
