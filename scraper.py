@@ -6,6 +6,9 @@ import datetime
 import requests
 from flask import Flask, jsonify, render_template_string
 from dotenv import load_dotenv
+import pytz
+
+local_tz = pytz.timezone("America/Los_Angeles")
 
 load_dotenv()
 app = Flask(__name__)
@@ -66,7 +69,8 @@ function updateMap() {
             iconUrl: spawn.icon,
             iconSize: [48, 48]
           });
-          const popup = `<b>${spawn.name}</b><br>Expires at: ${spawn.expires}<br><a href="https://maps.apple.com/?saddr=${userLat},${userLon}&daddr=${spawn.lat},${spawn.lon}" target="_blank">Apple Maps Route</a>`;
+          const timeLabel = spawn.expires.replace("GMT", "PST");
+          const popup = `<b>${spawn.name}</b><br>Expires at: ${new Date(spawn.expires).toLocaleString("en-US", { timeZone: "America/Los_Angeles", timeZoneName: "short" })}<br><a href="https://maps.apple.com/?saddr=${userLat},${userLon}&daddr=${spawn.lat},${spawn.lon}" target="_blank">Apple Maps Route</a>`;
           const marker = L.marker([spawn.lat, spawn.lon], { icon }).bindPopup(popup).addTo(map);
           markers.push(marker);
         });
@@ -90,8 +94,18 @@ def index():
 @app.route('/data')
 def data():
     update_spawns()
-    valid = [s for s in active_spawns if datetime.datetime.now() < s["expires"]]
+    now = datetime.datetime.now(pytz.timezone("America/Los_Angeles"))
+    valid = []
+    for s in active_spawns:
+        print(f"NOW: {now}, checking spawn: {s['name']} expires {s['expires']}")
+        if s["expires"] > now:
+            # clone and convert for frontend
+            s_copy = s.copy()
+            s_copy["expires"] = s_copy["expires"].isoformat()
+            valid.append(s_copy)
+
     return jsonify(valid)
+
 
 def fetch_recent_messages():
     command = f'curl -s -H "Authorization: {user_token}" "https://discord.com/api/v10/channels/{channel_id}/messages?limit=100"'
@@ -122,20 +136,26 @@ def extract_data(message):
             return None
 
         time_str = time_match.group(1).strip()
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(pytz.timezone("America/Los_Angeles"))
         expire_dt = datetime.datetime.strptime(time_str, "%I:%M:%S %p").replace(year=now.year, month=now.month, day=now.day)
-        if expire_dt < now:
-            expire_dt += datetime.timedelta(days=1)
+        expire_dt = local_tz.localize(expire_dt)
+        # Fix cases where Discord timestamp might be mis-parsed as next day
+        # If the expiration is exactly 24 hours ahead, shift it back
+        diff = expire_dt - now
+        if datetime.timedelta(hours=23, minutes=59) < diff < datetime.timedelta(hours=24, minutes=1):
+            print(f"Adjusting future-drifted time back 24h: {expire_dt} -> ", end="")
+            expire_dt -= datetime.timedelta(days=1)
+            print(f"{expire_dt}")
 
         sprite_path = download_sprite(name)
         return {
-    "name": name.title(),
-    "lat": lat,
-    "lon": lon,
-    "expires": expire_dt,  # keep as datetime for filtering
-    "expires_str": expire_dt.strftime("%I:%M:%S %p"),  # for display
-    "icon": sprite_path
-}
+          "name": name.title(),
+          "lat": lat,
+          "lon": lon,
+          "expires": expire_dt,  # keep as datetime for filtering
+          "expires_str": expire_dt.strftime("%a, %d %b %Y %I:%M:%S %p %Z"),  # for display
+          "icon": sprite_path
+      }
 
 
     except Exception as e:

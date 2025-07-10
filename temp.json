@@ -1,0 +1,69 @@
+[
+    {
+        "type": 0,
+        "content": "Fremont  Hisuian Voltorb 100% (29m 22s) \u26a7 <:poracle_weather_sunny:1015852812820824124> <@&516733649975115813>",
+        "mentions": [],
+        "mention_roles": [
+            "516733649975115813"
+        ],
+        "attachments": [],
+        "embeds": [
+            {
+                "type": "rich",
+                "title": "100% Voltorb Hisuian cp:750 L:26 15/15/15 <:poracle_weather_sunny:1015852812820824124>",
+                "description": "End: 11:17:20 AM (**29m 22s**)  :white_check_mark:\nCP:**750** IV:**100%** LVL:**26**\n(**15/15/15**) M\n Saffron Terrace,  Fremont \n**Moveset:** <:poracle_type_normal:1015852756826853417> Tackle, <:poracle_type_normal:1015852756826853417> Swift \n Maps: [Google](https://maps.google.com/maps?q=37.523166803103734,-121.95935352041356) | [Apple](https://maps.apple.com/place?coordinate=37.523166803103734,-121.95935352041356)",
+                "color": 16744448,
+                "image": {
+                    "url": "https://maptiles.pogosj11.com/staticmap/pregenerated/bDG6ZoQokHAyvl6IUUFmzzpa+pNf1wO72zKE695C9wY=.png",
+                    "proxy_url": "https://images-ext-1.discordapp.net/external/JEwK06OFFafOEMH9auBZFzYjEuH9fMVUe4fpkDGfuqg/https/maptiles.pogosj11.com/staticmap/pregenerated/bDG6ZoQokHAyvl6IUUFmzzpa%2BpNf1wO72zKE695C9wY%3D.png",
+                    "width": 1000,
+                    "height": 500,
+                    "content_type": "image/png",
+                    "placeholder": "dwgCBIABCdXOybpVhGO/QzfATA==",
+                    "placeholder_version": 1,
+                    "flags": 0
+                },
+                "thumbnail": {
+                    "url": "https://raw.githubusercontent.com/WatWowMap/wwm-uicons/main/pokemon/100_f2728.png",
+                    "proxy_url": "https://images-ext-1.discordapp.net/external/KmycnO0qkzFlYDgR-V4qHSe6OyUtvGMjD-oWk08dpTI/https/raw.githubusercontent.com/WatWowMap/wwm-uicons/main/pokemon/100_f2728.png",
+                    "width": 128,
+                    "height": 124,
+                    "content_type": "image/png",
+                    "placeholder": "IKuGJYgrS5qAiWarx4l/mfiHBleHiHB0Vw==",
+                    "placeholder_version": 1,
+                    "flags": 0
+                },
+                "footer": {
+                    "text": "Thu Jul 10 2025 10:47:59 GMT-0700 (Pacific Daylight Time)"
+                },
+                "content_scan_version": 2
+            }
+        ],
+        "timestamp": "2025-07-10T17:47:59.267000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1392925335426957433",
+        "channel_id": "348769770671308800",
+        "author": {
+            "id": "969322746058276924",
+            "username": "pogoSJ1bot",
+            "avatar": "57b5655a03ddc309f089eabbf9b6107e",
+            "discriminator": "1398",
+            "public_flags": 0,
+            "flags": 0,
+            "bot": true,
+            "banner": null,
+            "accent_color": null,
+            "global_name": null,
+            "avatar_decoration_data": null,
+            "collectibles": null,
+            "banner_color": null,
+            "clan": null,
+            "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false
+    }
+]
