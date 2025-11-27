@@ -38,8 +38,7 @@ active_spawns = []
 # =======================
 # Apple Maps Pro Pack UI
 # =======================
-HTML_TEMPLATE = r"""
-<!DOCTYPE html>
+HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html>
 <head>
   <title>Live Pokémon Map</title>
@@ -292,6 +291,134 @@ HTML_TEMPLATE = r"""
       text-decoration: none;
       box-shadow: 0 6px 16px rgba(10,132,255,0.45);
     }
+
+    /* ========== FILTER PANEL (Smart Filtering Pack) ========== */
+    #filterPanel {
+      position: fixed;
+      top: 60px;
+      left: 12px;
+      width: 260px;
+      max-width: 75vw;
+      z-index: 9999;
+      padding: 10px 12px 12px;
+      border-radius: 18px;
+      background: radial-gradient(circle at 0% 0%, rgba(255,255,255,0.9), rgba(240,242,247,0.85));
+      backdrop-filter: blur(24px);
+      box-shadow:
+        0 10px 25px rgba(0,0,0,0.4),
+        inset 0 0 0 0.5px rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.85);
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      transform: scale(0.9);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* When open */
+    #filterPanel.open {
+      transform: scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* FILTERS BUTTON */
+    .filters-toggle-btn {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 9999;
+      padding: 8px 14px;
+      border-radius: 12px;
+      background: rgba(30,30,30,0.55);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.2);
+      cursor: pointer;
+      user-select: none;
+      transition: 0.2s;
+    }
+    .filters-toggle-btn:active {
+      transform: scale(0.96);
+    }
+
+    .filter-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .filter-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111;
+    }
+    .filter-clear-btn {
+      border: none;
+      background: transparent;
+      color: #0a84ff;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+
+    .filter-group {
+      margin-top: 6px;
+    }
+
+    .filter-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .filter-input {
+      width: 100%;
+      padding: 5px 8px;
+      font-size: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.08);
+      outline: none;
+      background: rgba(255,255,255,0.9);
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .chip {
+      border: none;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.9);
+      color: #333;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .chip-active {
+      background: #0a84ff;
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(10,132,255,0.5);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #333;
+      margin-top: 4px;
+    }
+    .toggle-row input[type="checkbox"] {
+      accent-color: #0a84ff;
+    }
   </style>
 </head>
 
@@ -305,6 +432,44 @@ HTML_TEMPLATE = r"""
 
 <div class="compass-btn" id="compassBtn">🧭</div>
 <div class="recenter-btn" id="recenterBtn">⌖</div>
+
+<div id="filtersToggleBtn" class="filters-toggle-btn">Filters ⚙️</div>
+
+<!-- Smart Filtering Pack panel -->
+<div id="filterPanel">
+  <div class="filter-header-row">
+    <span class="filter-title">Filters</span>
+    <button id="clearFiltersBtn" class="filter-clear-btn">Reset</button>
+  </div>
+
+  <div class="filter-group">
+    <label class="filter-label" for="speciesSearch">Species</label>
+    <input id="speciesSearch" class="filter-input" type="text" placeholder="Search Pokémon">
+    <div id="speciesChips" class="chip-row"></div>
+  </div>
+
+  <div class="filter-group">
+    <label class="filter-label">Distance</label>
+    <div id="distanceChips" class="chip-row">
+      <button class="chip chip-active" data-distance="any">Any</button>
+      <button class="chip" data-distance="500">≤ 500 m</button>
+      <button class="chip" data-distance="1000">≤ 1 km</button>
+      <button class="chip" data-distance="3000">≤ 3 km</button>
+    </div>
+  </div>
+
+  <div class="filter-group">
+    <label class="filter-label">Map clutter</label>
+    <label class="toggle-row">
+      <input type="checkbox" id="toggleIcons" checked>
+      <span>Show Pokémon icons</span>
+    </label>
+    <label class="toggle-row">
+      <input type="checkbox" id="toggleCountdowns" checked>
+      <span>Show countdown badges</span>
+    </label>
+  </div>
+</div>
 
 <!-- Liquid glass bottom sheet (hidden until a Pokémon is tapped) -->
 <div id="sheetBackdrop"></div>
@@ -374,11 +539,322 @@ let userMarker = null;
 let lastUserLat = null;
 let lastUserLon = null;
 
-/* ---------------- POKEMON MARKERS + COUNTDOWN ---------------- */
+/* ---------------- FILTER STATE ---------------- */
+let lastSpawns = [];
 let markers = [];
 let countdownData = [];
 let selectedSpawn = null; // for bottom sheet countdown
 
+let filterState = {
+  species: [],            // array of names
+  distance: "any",        // "any" or numeric string
+  showIcons: true,
+  showCountdowns: true
+};
+
+const FILTER_STORAGE_KEY = "pokeFiltersV1";
+
+/* ---------------- DOM REFS (Filters + Sheet) ---------------- */
+const speciesSearchInput = document.getElementById("speciesSearch");
+const speciesChipsEl = document.getElementById("speciesChips");
+const distanceChipsEl = document.getElementById("distanceChips");
+const toggleIconsEl = document.getElementById("toggleIcons");
+const toggleCountdownsEl = document.getElementById("toggleCountdowns");
+const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+
+const filterPanel = document.getElementById("filterPanel");
+const filtersToggleBtn = document.getElementById("filtersToggleBtn");
+
+const sheet = document.getElementById("infoSheet");
+const sheetBackdrop = document.getElementById("sheetBackdrop");
+const sheetName = document.getElementById("sheetName");
+const sheetMeta = document.getElementById("sheetMeta");
+const sheetIcon = document.getElementById("sheetIcon");
+const sheetCountdownEl = document.getElementById("sheetCountdown");
+const sheetDistanceEl = document.getElementById("sheetDistance");
+const sheetRouteBtn = document.getElementById("sheetRouteBtn");
+
+/* ---------------- UTIL: Load/save filter state ---------------- */
+function loadFilterState() {
+  try {
+    const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    if (parsed && typeof parsed === "object") {
+      if (Array.isArray(parsed.species)) filterState.species = parsed.species;
+      if (parsed.distance) filterState.distance = parsed.distance;
+      if (typeof parsed.showIcons === "boolean") filterState.showIcons = parsed.showIcons;
+      if (typeof parsed.showCountdowns === "boolean") filterState.showCountdowns = parsed.showCountdowns;
+    }
+  } catch (e) {
+    console.warn("Failed to load filter state:", e);
+  }
+}
+
+function saveFilterState() {
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterState));
+  } catch (e) {
+    console.warn("Failed to save filter state:", e);
+  }
+}
+
+/* ---------------- COUNTDOWN + DIST UTILS ---------------- */
+function formatCountdown(ms) {
+  let sec = Math.floor(ms / 1000);
+  let m = Math.floor(sec / 60);
+  let s = sec % 60;
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+function computeDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/* ---------------- BOTTOM SHEET CONTROL ---------------- */
+function openSheet(spawn) {
+  selectedSpawn = spawn;
+
+  sheetName.textContent = spawn.name;
+  sheetIcon.src = spawn.icon || "";
+  sheetCountdownEl.textContent = formatCountdown(spawn.expireTime - Date.now());
+
+  sheetMeta.textContent = "Wild spawn";
+
+  if (lastUserLat != null && lastUserLon != null) {
+    const distM = computeDistanceMeters(lastUserLat, lastUserLon, spawn.lat, spawn.lon);
+    if (distM < 1000) {
+      sheetDistanceEl.textContent = Math.round(distM) + " m away";
+    } else {
+      sheetDistanceEl.textContent = (distM / 1000).toFixed(1) + " km away";
+    }
+  } else {
+    sheetDistanceEl.textContent = "Unknown";
+  }
+
+  const mapsUrl =
+    "https://maps.apple.com/?saddr=Current%20Location&daddr=" +
+    encodeURIComponent(spawn.lat + "," + spawn.lon);
+  sheetRouteBtn.href = mapsUrl;
+
+  sheet.classList.add("open");
+  sheetBackdrop.classList.add("visible");
+}
+
+function closeSheet() {
+  selectedSpawn = null;
+  sheet.classList.remove("open");
+  sheetBackdrop.classList.remove("visible");
+}
+
+sheetBackdrop.addEventListener("click", closeSheet);
+
+/* ---------------- FILTERS COLLAPSIBLE BUTTON ---------------- */
+let filtersOpen = false;
+
+filtersToggleBtn.addEventListener("click", () => {
+  filtersOpen = !filtersOpen;
+  if (filtersOpen) {
+    filterPanel.classList.add("open");
+    filtersToggleBtn.textContent = "Filters ❌";
+  } else {
+    filterPanel.classList.remove("open");
+    filtersToggleBtn.textContent = "Filters ⚙️";
+  }
+});
+
+/* ---------------- FILTER UI: species chips ---------------- */
+function buildSpeciesChips() {
+  if (!speciesChipsEl) return;
+  speciesChipsEl.innerHTML = "";
+
+  const term = (speciesSearchInput.value || "").trim().toLowerCase();
+  const uniqueNames = Array.from(new Set(lastSpawns.map(s => s.name))).sort();
+
+  uniqueNames.forEach(name => {
+    if (term && !name.toLowerCase().includes(term)) return;
+
+    const btn = document.createElement("button");
+    btn.className = "chip";
+    if (filterState.species.includes(name)) {
+      btn.classList.add("chip-active");
+    }
+    btn.textContent = name;
+    btn.dataset.name = name;
+    btn.addEventListener("click", () => {
+      const idx = filterState.species.indexOf(name);
+      if (idx === -1) {
+        filterState.species.push(name);
+      } else {
+        filterState.species.splice(idx, 1);
+      }
+      saveFilterState();
+      buildSpeciesChips();
+      renderSpawns();
+    });
+    speciesChipsEl.appendChild(btn);
+  });
+}
+
+/* ---------------- FILTER UI: distance chips ---------------- */
+function initDistanceChipsUI() {
+  if (!distanceChipsEl) return;
+  const buttons = distanceChipsEl.querySelectorAll(".chip");
+  buttons.forEach(btn => {
+    const val = btn.getAttribute("data-distance") || "any";
+    if (val === filterState.distance) {
+      btn.classList.add("chip-active");
+    } else {
+      btn.classList.remove("chip-active");
+    }
+    btn.addEventListener("click", () => {
+      filterState.distance = val;
+      saveFilterState();
+      buttons.forEach(b => b.classList.remove("chip-active"));
+      btn.classList.add("chip-active");
+      renderSpawns();
+    });
+  });
+}
+
+/* ---------------- FILTER UI: toggles ---------------- */
+function initToggleUI() {
+  if (toggleIconsEl) {
+    toggleIconsEl.checked = filterState.showIcons;
+    toggleIconsEl.addEventListener("change", () => {
+      filterState.showIcons = toggleIconsEl.checked;
+      saveFilterState();
+      renderSpawns();
+    });
+  }
+  if (toggleCountdownsEl) {
+    toggleCountdownsEl.checked = filterState.showCountdowns;
+    toggleCountdownsEl.addEventListener("change", () => {
+      filterState.showCountdowns = toggleCountdownsEl.checked;
+      saveFilterState();
+      renderSpawns();
+    });
+  }
+}
+
+/* ---------------- FILTER UI: search + reset ---------------- */
+if (speciesSearchInput) {
+  speciesSearchInput.addEventListener("input", () => {
+    buildSpeciesChips();
+  });
+}
+
+if (clearFiltersBtn) {
+  clearFiltersBtn.addEventListener("click", () => {
+    filterState = {
+      species: [],
+      distance: "any",
+      showIcons: true,
+      showCountdowns: true
+    };
+    saveFilterState();
+    if (toggleIconsEl) toggleIconsEl.checked = true;
+    if (toggleCountdownsEl) toggleCountdownsEl.checked = true;
+    if (distanceChipsEl) {
+      distanceChipsEl.querySelectorAll(".chip").forEach(btn => {
+        const val = btn.getAttribute("data-distance") || "any";
+        if (val === "any") btn.classList.add("chip-active");
+        else btn.classList.remove("chip-active");
+      });
+    }
+    buildSpeciesChips();
+    renderSpawns();
+  });
+}
+
+/* ---------------- RENDER SPAWNS USING FILTERS ---------------- */
+function renderSpawns() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  countdownData = [];
+
+  const now = Date.now();
+  const speciesSet = new Set(filterState.species || []);
+  const distanceLimit =
+    filterState.distance === "any" ? Infinity : parseFloat(filterState.distance);
+
+  lastSpawns.forEach(spawn => {
+    // species filter
+    if (speciesSet.size > 0 && !speciesSet.has(spawn.name)) return;
+
+    // distance filter
+    if (distanceLimit !== Infinity && lastUserLat != null && lastUserLon != null) {
+      const distM = computeDistanceMeters(lastUserLat, lastUserLon, spawn.lat, spawn.lon);
+      if (distM > distanceLimit) return;
+    }
+
+    const expireTime = spawn.expireTime;
+
+    // Pokémon icon marker
+    let pokeMarker = null;
+    if (filterState.showIcons) {
+      const pokeIcon = L.icon({
+        iconUrl: spawn.icon,
+        iconSize: [48, 48],
+        iconAnchor: [24, 24]
+      });
+      pokeMarker = L.marker([spawn.lat, spawn.lon], { icon: pokeIcon }).addTo(map);
+      markers.push(pokeMarker);
+
+      pokeMarker.on("click", () => {
+        openSheet(spawn);
+      });
+    }
+
+    // Countdown marker
+    if (filterState.showCountdowns) {
+      const initialStr = formatCountdown(expireTime - now);
+      const countdownMarker = L.marker([spawn.lat, spawn.lon], {
+        icon: L.divIcon({
+          className: "",
+          html: "<div class='countdown-bubble'>" + initialStr + "</div>",
+          iconSize: [60, 30],
+          iconAnchor: [30, 40]
+        })
+      }).addTo(map);
+      markers.push(countdownMarker);
+      countdownData.push({
+        marker: countdownMarker,
+        expires: expireTime
+      });
+    }
+  });
+}
+
+/* ---------------- FETCH & CACHE SPAWNS ---------------- */
+function fetchSpawns(userLat, userLon) {
+  fetch("/data")
+    .then(res => res.json())
+    .then(spawns => {
+      const now = Date.now();
+      lastSpawns = spawns.map(spawn => ({
+        name: spawn.name,
+        lat: spawn.lat,
+        lon: spawn.lon,
+        icon: spawn.icon,
+        expiresIso: spawn.expires,
+        expireTime: new Date(spawn.expires).getTime()
+      }));
+      buildSpeciesChips();
+      renderSpawns();
+    });
+}
+
+/* ---------------- MAIN UPDATE LOOP ---------------- */
 function updateMap() {
   navigator.geolocation.getCurrentPosition(
     pos => {
@@ -399,142 +875,10 @@ function updateMap() {
   );
 }
 
-/* Format countdown as M:SS */
-function formatCountdown(ms) {
-  let sec = Math.floor(ms / 1000);
-  let m = Math.floor(sec / 60);
-  let s = sec % 60;
-  return m + ":" + String(s).padStart(2, "0");
-}
-
-/* Haversine distance (meters) */
-function computeDistanceMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const toRad = x => x * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-/* ---------------- BOTTOM SHEET CONTROL ---------------- */
-const sheet = document.getElementById("infoSheet");
-const sheetBackdrop = document.getElementById("sheetBackdrop");
-const sheetName = document.getElementById("sheetName");
-const sheetMeta = document.getElementById("sheetMeta");
-const sheetIcon = document.getElementById("sheetIcon");
-const sheetCountdownEl = document.getElementById("sheetCountdown");
-const sheetDistanceEl = document.getElementById("sheetDistance");
-const sheetRouteBtn = document.getElementById("sheetRouteBtn");
-
-function openSheet(spawn, expireTimeMs) {
-  selectedSpawn = {
-    name: spawn.name,
-    lat: spawn.lat,
-    lon: spawn.lon,
-    expires: expireTimeMs,
-    icon: spawn.icon
-  };
-
-  sheetName.textContent = spawn.name;
-  sheetIcon.src = spawn.icon || "";
-  sheetCountdownEl.textContent = formatCountdown(expireTimeMs - Date.now());
-
-  // Meta line
-  sheetMeta.textContent = "Wild spawn";
-
-  // Distance
-  if (lastUserLat != null && lastUserLon != null) {
-    const distM = computeDistanceMeters(lastUserLat, lastUserLon, spawn.lat, spawn.lon);
-    if (distM < 1000) {
-      sheetDistanceEl.textContent = Math.round(distM) + " m away";
-    } else {
-      sheetDistanceEl.textContent = (distM / 1000).toFixed(1) + " km away";
-    }
-  } else {
-    sheetDistanceEl.textContent = "Unknown";
-  }
-
-  // Route URL
-  const saddr = (lastUserLat != null && lastUserLon != null)
-    ? encodeURIComponent(lastUserLat + "," + lastUserLon)
-    : "Current%20Location";
-  const daddr = encodeURIComponent(spawn.lat + "," + spawn.lon);
-  const mapsUrl = "https://maps.apple.com/?saddr=" + saddr + "&daddr=" + daddr;
-  sheetRouteBtn.href = mapsUrl;
-
-  sheet.classList.add("open");
-  sheetBackdrop.classList.add("visible");
-}
-
-function closeSheet() {
-  selectedSpawn = null;
-  sheet.classList.remove("open");
-  sheetBackdrop.classList.remove("visible");
-}
-
-sheetBackdrop.addEventListener("click", closeSheet);
-
-/* ---------------- FETCH & RENDER SPAWNS ---------------- */
-function fetchSpawns(userLat, userLon) {
-  fetch("/data")
-    .then(res => res.json())
-    .then(spawns => {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
-      countdownData = [];
-
-      const now = Date.now();
-
-      spawns.forEach(spawn => {
-        const expireTime = new Date(spawn.expires).getTime();
-        const countdownStr = formatCountdown(expireTime - now);
-
-        /* ---- Pokémon marker (48x48) ---- */
-        const pokeIcon = L.icon({
-          iconUrl: spawn.icon,
-          iconSize: [48, 48],
-          iconAnchor: [24, 24]
-        });
-
-        const pokeMarker = L.marker([spawn.lat, spawn.lon], { icon: pokeIcon }).addTo(map);
-        markers.push(pokeMarker);
-
-        /* ---- Countdown marker ---- */
-        const countdownMarker = L.marker([spawn.lat, spawn.lon], {
-          icon: L.divIcon({
-            className: "",
-            html: "<div class='countdown-bubble'>" + countdownStr + "</div>",
-            iconSize: [60, 30],
-            iconAnchor: [30, 40]
-          })
-        }).addTo(map);
-        markers.push(countdownMarker);
-
-        countdownData.push({
-          marker: countdownMarker,
-          expires: expireTime
-        });
-
-        /* ---- Popup & sheet interaction ---- */
-        let mapsUrl =
-          "https://maps.apple.com/?saddr=" +
-          encodeURIComponent((userLat ?? "Current Location") + "," + (userLon ?? "")) +
-          "&daddr=" +
-          encodeURIComponent(spawn.lat + "," + spawn.lon);
-
-        
-
-        pokeMarker.on("click", () => {
-          openSheet(spawn, expireTime);
-        });
-      });
-    });
-}
+/* ---------------- INITIALIZE FILTER STATE & UI ---------------- */
+loadFilterState();
+initDistanceChipsUI();
+initToggleUI();
 
 /* Fetch new spawn data every 10 sec */
 updateMap();
@@ -560,7 +904,7 @@ setInterval(() => {
 
   // Update sheet countdown too
   if (selectedSpawn && sheetCountdownEl) {
-    const msRemaining = selectedSpawn.expires - now;
+    const msRemaining = selectedSpawn.expireTime - now;
     if (msRemaining <= 0) {
       sheetCountdownEl.textContent = "Expired";
     } else {
@@ -610,6 +954,8 @@ modeToggle.addEventListener("click", () => {
 </body>
 </html>
 """
+
+
 
 
 
