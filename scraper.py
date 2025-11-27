@@ -466,5 +466,5 @@ def update_spawns():
 
 
 if __name__ == '__main__':
-    print("🌍 Open http://localhost:5000 in your browser")
-    app.run(debug=False)
+    print("🌍 Open https://localhost:5000 in your browser")
+    app.run(ssl_context=('localhost.pem', 'localhost-key.pem'))
