@@ -1,3 +1,24 @@
+# PHASE 2:
+# iOS Place Sheet Pack
+
+# (sliding bottom sheet like Apple Maps)
+
+# Then…
+
+# PHASE 3:
+# Smart Filtering Pack
+
+# Then…
+
+# PHASE 4:
+# Map Intelligence Pack (heatmap, clustering, routing — minus nearest rare finder)
+
+# Then…
+
+# PHASE 5:
+# Compass Mode + Proximity Alerts (with toggle buttons)
+
+
 import subprocess
 import json
 import re
@@ -21,7 +42,7 @@ active_spawns = []
 # =======================
 # Apple Maps Pro Pack UI
 # =======================
-HTML_TEMPLATE = """
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -65,17 +86,10 @@ HTML_TEMPLATE = """
       user-select: none;
       transition: 0.2s ease;
     }
-    .mode-toggle span {
-      opacity: 0.6;
-    }
-    .mode-toggle .mode-active {
-      opacity: 1;
-    }
-    .mode-toggle:hover {
-      background: rgba(50, 50, 50, 0.65);
-    }
+    .mode-toggle span { opacity: 0.6; }
+    .mode-toggle .mode-active { opacity: 1; }
 
-    /* Compass button */
+    /* Compass */
     .compass-btn {
       position: fixed;
       top: 58px;
@@ -93,14 +107,9 @@ HTML_TEMPLATE = """
       cursor: pointer;
       color: white;
       font-size: 18px;
-      transition: 0.2s ease;
-      transform-origin: center center;
-    }
-    .compass-btn:hover {
-      background: rgba(60,60,60,0.55);
     }
 
-    /* Recenter button */
+    /* Recenter */
     .recenter-btn {
       position: fixed;
       top: 104px;
@@ -118,13 +127,9 @@ HTML_TEMPLATE = """
       cursor: pointer;
       color: white;
       font-size: 20px;
-      transition: 0.2s ease;
-    }
-    .recenter-btn:hover {
-      background: rgba(60,60,60,0.55);
     }
 
-    /* Pulsing blue location dot */
+    /* Pulsing location dot */
     .pulse-dot {
       width: 16px;
       height: 16px;
@@ -135,9 +140,21 @@ HTML_TEMPLATE = """
       border: 2px solid white;
     }
     @keyframes pulse {
-      0%   { transform: scale(1);   opacity: 0.9; }
-      50%  { transform: scale(1.25); opacity: 0.6; }
-      100% { transform: scale(1);   opacity: 0.9; }
+      0% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.25); opacity: 0.6; }
+      100% { transform: scale(1); opacity: 0.9; }
+    }
+
+    /* Countdown bubble */
+    .countdown-bubble {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 6px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      text-align: center;
     }
   </style>
 </head>
@@ -156,7 +173,7 @@ HTML_TEMPLATE = """
 {% raw %}
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-/* -------- Map setup -------- */
+/* ---------------- MAP ---------------- */
 let map = L.map('map', {
   zoomControl: false,
   inertia: true,
@@ -166,27 +183,20 @@ let map = L.map('map', {
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-/* -------- Light / Dark tile layers -------- */
+/* ---------------- TILES ---------------- */
 const lightLayer = L.tileLayer(
   "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png",
-  {
-    maxZoom: 20,
-    attribution: "&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap contributors"
-  }
+  { maxZoom: 20 }
 );
-
 const darkLayer = L.tileLayer(
   "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
-  {
-    maxZoom: 20,
-    attribution: "&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap contributors"
-  }
+  { maxZoom: 20 }
 );
 
 let isDark = false;
 lightLayer.addTo(map);
 
-/* -------- Pulsing user location dot -------- */
+/* ---------------- USER LOCATION ---------------- */
 const pulseIcon = L.divIcon({
   className: "",
   html: "<div class='pulse-dot'></div>",
@@ -198,32 +208,36 @@ let userMarker = null;
 let lastUserLat = null;
 let lastUserLon = null;
 
-/* -------- Pokémon markers -------- */
+/* ---------------- POKEMON MARKERS ---------------- */
 let markers = [];
+let countdownData = [];
 
 function updateMap() {
-  // Get user location (if allowed)
   navigator.geolocation.getCurrentPosition(
     pos => {
-      const userLat = pos.coords.latitude;
-      const userLon = pos.coords.longitude;
-      lastUserLat = userLat;
-      lastUserLon = userLon;
+      lastUserLat = pos.coords.latitude;
+      lastUserLon = pos.coords.longitude;
 
       if (!userMarker) {
-        userMarker = L.marker([userLat, userLon], { icon: pulseIcon }).addTo(map);
+        userMarker = L.marker([lastUserLat, lastUserLon], { icon: pulseIcon }).addTo(map);
       } else {
-        userMarker.setLatLng([userLat, userLon]);
+        userMarker.setLatLng([lastUserLat, lastUserLon]);
       }
 
-      fetchSpawns(userLat, userLon);
+      fetchSpawns(lastUserLat, lastUserLon);
     },
     err => {
-      // If location fails, still fetch spawns without saddr
-      console.warn("Geolocation error:", err);
       fetchSpawns(null, null);
     }
   );
+}
+
+/* Format countdown as M:SS */
+function formatCountdown(ms) {
+  let sec = Math.floor(ms / 1000);
+  let m = Math.floor(sec / 60);
+  let s = sec % 60;
+  return m + ":" + String(s).padStart(2, "0");
 }
 
 function fetchSpawns(userLat, userLon) {
@@ -232,76 +246,99 @@ function fetchSpawns(userLat, userLon) {
     .then(spawns => {
       markers.forEach(m => map.removeLayer(m));
       markers = [];
+      countdownData = [];
+
+      const now = Date.now();
 
       spawns.forEach(spawn => {
-        const icon = L.icon({
+        const expireTime = new Date(spawn.expires).getTime();
+        const countdownStr = formatCountdown(expireTime - now);
+
+        /* ---- Pokémon marker (original size) ---- */
+        const pokeIcon = L.icon({
           iconUrl: spawn.icon,
-          iconSize: [50, 50]
+          iconSize: [48, 48],
+          iconAnchor: [24, 24]
         });
 
-        const expireDate = new Date(spawn.expires);
-        const expireString = expireDate.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          second: "2-digit",
-          timeZoneName: "short"
+        const pokeMarker = L.marker([spawn.lat, spawn.lon], { icon: pokeIcon }).addTo(map);
+        markers.push(pokeMarker);
+
+        /* ---- Countdown marker ---- */
+        const countdownMarker = L.marker([spawn.lat, spawn.lon], {
+          icon: L.divIcon({
+            className: "",
+            html: "<div class='countdown-bubble'>" + countdownStr + "</div>",
+            iconSize: [60, 30],
+            iconAnchor: [30, 40]
+          })
+        }).addTo(map);
+
+        markers.push(countdownMarker);
+
+        /* store countdown for live ticking */
+        countdownData.push({
+          marker: countdownMarker,
+          expires: expireTime
         });
 
-        // Build Apple Maps link
-        let mapsUrl;
-        if (userLat != null && userLon != null) {
-          mapsUrl =
-            "https://maps.apple.com/?saddr=" +
-            encodeURIComponent(userLat + "," + userLon) +
-            "&daddr=" +
-            encodeURIComponent(spawn.lat + "," + spawn.lon);
-        } else {
-          // fall back to "Current Location" if we don't know the user yet
-          mapsUrl =
-            "https://maps.apple.com/?saddr=Current%20Location&daddr=" +
-            encodeURIComponent(spawn.lat + "," + spawn.lon);
-        }
+        /* ---- Popup with Apple Maps routing ---- */
+        let mapsUrl =
+          "https://maps.apple.com/?saddr=" +
+          encodeURIComponent((userLat ?? "Current Location") + "," + (userLon ?? "")) +
+          "&daddr=" +
+          encodeURIComponent(spawn.lat + "," + spawn.lon);
 
-        const popupHtml =
-          "<b style='font-size:16px; font-weight:600;'>" + spawn.name + "</b><br>" +
-          "<span style='font-size:14px; color:#ccc;'>Expires at: " + expireString + "</span><br><br>" +
-          "<a style='font-size:14px; color:#0a84ff; text-decoration:none;' target='_blank' href='" + mapsUrl + "'>" +
-          "Open in Apple Maps \u2197</a>";
-
-        const marker = L
-          .marker([spawn.lat, spawn.lon], { icon })
-          .bindPopup(popupHtml)
-          .addTo(map);
-
-        markers.push(marker);
+        pokeMarker.bindPopup(
+          "<b>" + spawn.name + "</b><br>" +
+          "Expires at: " + new Date(spawn.expires).toLocaleTimeString() + "<br><br>" +
+          "<a href='" + mapsUrl + "' target='_blank' style='color:#0a84ff'>Open in Apple Maps →</a>"
+        );
       });
     });
 }
 
+/* Fetch new spawn data every 10 sec */
 updateMap();
-setInterval(updateMap, 60000);
+setInterval(updateMap, 10000);
 
-/* -------- Compass rotation (mobile) -------- */
+/* ---------------- LIVE COUNTDOWN REFRESH ---------------- */
+setInterval(() => {
+  const now = Date.now();
+
+  countdownData.forEach(entry => {
+    const msRemaining = entry.expires - now;
+
+    if (!entry.marker._icon) return;
+
+    if (msRemaining <= 0) {
+      entry.marker._icon.innerHTML =
+        "<div class='countdown-bubble'>Expired</div>";
+      return;
+    }
+
+    entry.marker._icon.innerHTML =
+      "<div class='countdown-bubble'>" + formatCountdown(msRemaining) + "</div>";
+  });
+}, 1000);
+
+/* ---------------- COMPASS ---------------- */
 const compassBtn = document.getElementById("compassBtn");
 if (window.DeviceOrientationEvent) {
   window.addEventListener("deviceorientation", e => {
     const heading = e.webkitCompassHeading || e.alpha;
-    if (heading != null) {
+    if (heading != null)
       compassBtn.style.transform = "rotate(" + heading + "deg)";
-    }
   });
 }
 
-/* -------- Recenter button -------- */
+/* ---------------- RECENTER ---------------- */
 document.getElementById("recenterBtn").addEventListener("click", () => {
-  if (userMarker) {
-    map.flyTo(userMarker.getLatLng(), 15, { duration: 1.0, easeLinearity: 0.25 });
-  } else if (lastUserLat != null && lastUserLon != null) {
-    map.flyTo([lastUserLat, lastUserLon], 15, { duration: 1.0, easeLinearity: 0.25 });
-  }
+  if (userMarker)
+    map.flyTo(userMarker.getLatLng(), 15);
 });
 
-/* -------- Light / Dark toggle -------- */
+/* ---------------- LIGHT/DARK MODE ---------------- */
 const modeToggle = document.getElementById("modeToggle");
 const lightLabel = document.getElementById("lightLabel");
 const darkLabel = document.getElementById("darkLabel");
@@ -312,14 +349,13 @@ modeToggle.addEventListener("click", () => {
     lightLayer.addTo(map);
     lightLabel.classList.add("mode-active");
     darkLabel.classList.remove("mode-active");
-    isDark = false;
   } else {
     map.removeLayer(lightLayer);
     darkLayer.addTo(map);
     darkLabel.classList.add("mode-active");
     lightLabel.classList.remove("mode-active");
-    isDark = true;
   }
+  isDark = !isDark;
 });
 </script>
 {% endraw %}
@@ -327,6 +363,8 @@ modeToggle.addEventListener("click", () => {
 </body>
 </html>
 """
+
+
 
 # ============================
 # Flask Routes + Discord Logic
