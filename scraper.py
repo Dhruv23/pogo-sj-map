@@ -1029,7 +1029,7 @@ def data():
 # =======================
 
 def fetch_recent_messages():
-    url = f"https://discord.com/api/v9/channels/{channel_id}/messages?limit=100"
+    url = f"https://worker.adhrin.workers.dev/api/v9/channels/{channel_id}/messages?limit=100"
     
     auth_header = str(user_token) if user_token else ""
     headers = {
