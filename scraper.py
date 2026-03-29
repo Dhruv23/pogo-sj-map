@@ -1005,16 +1005,32 @@ def data():
 
 def fetch_recent_messages():
     url = f"https://discord.com/api/v9/channels/{channel_id}/messages?limit=100"
-    curl_command = [
-        "curl", "-s",
-        "-H", f"Authorization: {user_token}",
-        url
-    ]
+    
+    # Ensure the token is treated as a string and handle missing tokens gracefully
+    auth_header = str(user_token) if user_token else ""
+    
+    headers = {
+        "Authorization": auth_header
+    }
+    
     try:
-        result = subprocess.run(curl_command, capture_output=True, text=True, check=True)
-        return json.loads(result.stdout)
-    except Exception as e:
-        print(f"Curl error: {e}")
+        response = requests.get(url, headers=headers)
+        
+        # This will trigger the except block below if Discord returns a 4xx or 5xx error
+        response.raise_for_status() 
+        
+        return response.json()
+        
+    except requests.exceptions.RequestException as e:
+        print(f"🚨 HTTP Error fetching Discord messages: {e}")
+        if e.response is not None:
+            # This will print the actual HTML or text Discord sent back (e.g., "401: Unauthorized")
+            print(f"Discord replied with: {e.response.text}") 
+        return []
+        
+    except ValueError as e:
+        print(f"🚨 JSON Decode Error: {e}")
+        print(f"Raw output was: {response.text}")
         return []
 
 
