@@ -1,4 +1,3 @@
-
 # Then…
 
 # PHASE 3:
@@ -20,6 +19,7 @@ import json
 import re
 import os
 import datetime
+import time
 import requests
 from flask import Flask, jsonify, render_template_string
 from dotenv import load_dotenv
@@ -33,7 +33,13 @@ channel_id = "348769770671308800"
 user_token = os.getenv("DISCORD_TOKEN")
 assets_dir = "static/assets"
 os.makedirs(assets_dir, exist_ok=True)
+
+# Master spawn list
 active_spawns = []
+
+# Backend Caching variables to prevent Discord 1015 IP Bans
+LAST_DISCORD_FETCH = 0
+FETCH_COOLDOWN = 30  # Wait at least 30 seconds before pinging Discord again
 
 # =======================
 # Apple Maps Pro Pack UI
@@ -435,7 +441,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
 <div id="filtersToggleBtn" class="filters-toggle-btn">Filters ⚙️</div>
 
-<!-- Smart Filtering Pack panel -->
 <div id="filterPanel">
   <div class="filter-header-row">
     <span class="filter-title">Filters</span>
@@ -471,7 +476,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- Liquid glass bottom sheet (hidden until a Pokémon is tapped) -->
 <div id="sheetBackdrop"></div>
 <div id="infoSheet">
   <div class="sheet-handle"></div>
@@ -843,23 +847,43 @@ function renderSpawns() {
   });
 }
 
-/* ---------------- FETCH & CACHE SPAWNS ---------------- */
+/* ---------------- FETCH & CACHE SPAWNS (FRONTEND) ---------------- */
 function fetchSpawns(userLat, userLon) {
+  const cacheTime = localStorage.getItem('pokeCacheTime');
+  const cacheData = localStorage.getItem('pokeCacheData');
+  const now = Date.now();
+
+  // If local browser cache exists and is less than 30 seconds old, use it!
+  if (cacheTime && cacheData && (now - parseInt(cacheTime) < 30000)) {
+    console.log("Using cached spawn data to save bandwidth");
+    processSpawns(JSON.parse(cacheData));
+    return;
+  }
+
+  // Otherwise, ask the backend
+  console.log("Fetching fresh spawn data from backend");
   fetch("/data")
     .then(res => res.json())
     .then(spawns => {
-      const now = Date.now();
-      lastSpawns = spawns.map(spawn => ({
-        name: spawn.name,
-        lat: spawn.lat,
-        lon: spawn.lon,
-        icon: spawn.icon,
-        expiresIso: spawn.expires,
-        expireTime: new Date(spawn.expires).getTime()
-      }));
-      buildSpeciesChips();
-      renderSpawns();
-    });
+      // Save to cache
+      localStorage.setItem('pokeCacheData', JSON.stringify(spawns));
+      localStorage.setItem('pokeCacheTime', Date.now());
+      processSpawns(spawns);
+    })
+    .catch(err => console.error("Failed to fetch spawns:", err));
+}
+
+function processSpawns(spawns) {
+  lastSpawns = spawns.map(spawn => ({
+    name: spawn.name,
+    lat: spawn.lat,
+    lon: spawn.lon,
+    icon: spawn.icon,
+    expiresIso: spawn.expires,
+    expireTime: new Date(spawn.expires).getTime()
+  }));
+  buildSpeciesChips();
+  renderSpawns();
 }
 
 /* ---------------- MAIN UPDATE LOOP ---------------- */
@@ -896,7 +920,8 @@ loadFilterState();
 initDistanceChipsUI();
 initToggleUI();
 
-/* Fetch new spawn data every 10 sec */
+/* Loop: Check geolocation and data every 10 seconds. 
+   (The fetchSpawns function will block actual HTTP requests if cache is fresh) */
 updateMap();
 setInterval(updateMap, 10000);
 
@@ -1006,33 +1031,21 @@ def data():
 def fetch_recent_messages():
     url = f"https://discord.com/api/v9/channels/{channel_id}/messages?limit=100"
     
-    # Ensure the token is treated as a string and handle missing tokens gracefully
     auth_header = str(user_token) if user_token else ""
-    
     headers = {
         "Authorization": auth_header
     }
     
     try:
         response = requests.get(url, headers=headers)
-        
-        # This will trigger the except block below if Discord returns a 4xx or 5xx error
         response.raise_for_status() 
-        
         return response.json()
-        
     except requests.exceptions.RequestException as e:
         print(f"🚨 HTTP Error fetching Discord messages: {e}")
-        if e.response is not None:
-            # This will print the actual HTML or text Discord sent back (e.g., "401: Unauthorized")
-            print(f"Discord replied with: {e.response.text}") 
         return []
-        
     except ValueError as e:
         print(f"🚨 JSON Decode Error: {e}")
-        print(f"Raw output was: {response.text}")
         return []
-
 
 def extract_data(message):
     try:
@@ -1059,22 +1072,13 @@ def extract_data(message):
         if not time_match:
             return None
 
-        # Parse expiration datetime from message timestamp directly
-        # Example timestamp: '2026-03-28T07:29:05.343000+00:00'
         msg_timestamp = message.get("timestamp")
         if not msg_timestamp:
             return None
 
-        # Parse the ISO format string correctly.
-        # Python 3.11's fromisoformat handles standard Z/+00:00 well.
-        # But we can also use datetime.strptime if needed.
-        # It's an ISO8601 string, we can use datetime.datetime.fromisoformat
         dt_utc = datetime.datetime.fromisoformat(msg_timestamp)
         now = datetime.datetime.now(local_tz)
 
-        # The discord timestamp is when the message was sent.
-        # The embed says: End: 12:57:49 AM (**28m 44s**)
-        # Let's extract the exact remaining time from the string
         duration_match = re.search(r'\*\*(?:(\d+)m\s*)?(?:(\d+)s)?\*\*', description)
         if duration_match:
             mins = int(duration_match.group(1) or 0)
@@ -1082,13 +1086,11 @@ def extract_data(message):
             expire_dt = dt_utc + datetime.timedelta(minutes=mins, seconds=secs)
             expire_dt = expire_dt.astimezone(local_tz)
         else:
-            # Fallback to older logic just in case
             time_str = time_match.group(1).strip()
             expire_dt = datetime.datetime.strptime(time_str, "%I:%M:%S %p").replace(
                 year=now.year, month=now.month, day=now.day
             )
             expire_dt = local_tz.localize(expire_dt)
-            # Fix 24h misalignment
             diff = expire_dt - now
             if datetime.timedelta(hours=23, minutes=59) < diff < datetime.timedelta(hours=24, minutes=1):
                 expire_dt -= datetime.timedelta(days=1)
@@ -1107,7 +1109,6 @@ def extract_data(message):
     except Exception as e:
         print(f"Parsing error: {e}")
         return None
-
 
 def download_sprite(name):
     sprite_file = f"{assets_dir}/{name}.png"
@@ -1135,20 +1136,30 @@ def download_sprite(name):
 
 
 def update_spawns():
-    global active_spawns
+    global active_spawns, LAST_DISCORD_FETCH
     new_spawns = []
+    
+    current_time = time.time()
 
-    messages = fetch_recent_messages()
-    for msg in messages:
-        parsed = extract_data(msg)
-        if parsed:
-            # Avoid duplicates by coordinates
-            if all(
-                existing["lat"] != parsed["lat"] or existing["lon"] != parsed["lon"]
-                for existing in active_spawns
-            ):
-                new_spawns.append(parsed)
+    # Only hit the Discord API if 30 seconds have passed
+    if current_time - LAST_DISCORD_FETCH >= FETCH_COOLDOWN:
+        messages = fetch_recent_messages()
+        
+        if messages:
+            for msg in messages:
+                parsed = extract_data(msg)
+                if parsed:
+                    # Avoid duplicates by coordinates
+                    if all(
+                        existing["lat"] != parsed["lat"] or existing["lon"] != parsed["lon"]
+                        for existing in active_spawns
+                    ):
+                        new_spawns.append(parsed)
+            
+            # Update the cooldown timer
+            LAST_DISCORD_FETCH = current_time
 
+    # Always clean up expired spawns and add new ones
     now = datetime.datetime.now(local_tz)
     active_spawns = [s for s in active_spawns if s["expires"] > now] + new_spawns
 
