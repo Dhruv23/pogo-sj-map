@@ -36,3 +36,4 @@ Thumbs.db
 # MacOS junk
 .Spotlight-V100
 .Trashes
+node_modules/

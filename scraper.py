@@ -864,23 +864,31 @@ function fetchSpawns(userLat, userLon) {
 
 /* ---------------- MAIN UPDATE LOOP ---------------- */
 function updateMap() {
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      lastUserLat = pos.coords.latitude;
-      lastUserLon = pos.coords.longitude;
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        lastUserLat = pos.coords.latitude;
+        lastUserLon = pos.coords.longitude;
 
-      if (!userMarker) {
-        userMarker = L.marker([lastUserLat, lastUserLon], { icon: pulseIcon }).addTo(map);
-      } else {
-        userMarker.setLatLng([lastUserLat, lastUserLon]);
-      }
+        if (!userMarker) {
+          userMarker = L.marker([lastUserLat, lastUserLon], { icon: pulseIcon }).addTo(map);
+          map.setView([lastUserLat, lastUserLon], 14);
+        } else {
+          userMarker.setLatLng([lastUserLat, lastUserLon]);
+        }
 
-      fetchSpawns(lastUserLat, lastUserLon);
-    },
-    err => {
-      fetchSpawns(null, null);
-    }
-  );
+        fetchSpawns(lastUserLat, lastUserLon);
+      },
+      err => {
+        console.warn("Geolocation error:", err);
+        fetchSpawns(null, null);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+    );
+  } else {
+    console.warn("Geolocation not supported or unavailable.");
+    fetchSpawns(null, null);
+  }
 }
 
 /* ---------------- INITIALIZE FILTER STATE & UI ---------------- */
@@ -996,15 +1004,18 @@ def data():
 # =======================
 
 def fetch_recent_messages():
-    command = (
-        f'curl -s -H "Authorization: {user_token}" '
-        f'"https://discord.com/api/v10/channels/{channel_id}/messages?limit=100"'
-    )
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"curl error: {result.stderr}")
+    url = f"https://discord.com/api/v9/channels/{channel_id}/messages?limit=100"
+    curl_command = [
+        "curl", "-s",
+        "-H", f"Authorization: {user_token}",
+        url
+    ]
+    try:
+        result = subprocess.run(curl_command, capture_output=True, text=True, check=True)
+        return json.loads(result.stdout)
+    except Exception as e:
+        print(f"Curl error: {e}")
         return []
-    return json.loads(result.stdout)
 
 
 def extract_data(message):
@@ -1032,18 +1043,39 @@ def extract_data(message):
         if not time_match:
             return None
 
-        time_str = time_match.group(1).strip()
+        # Parse expiration datetime from message timestamp directly
+        # Example timestamp: '2026-03-28T07:29:05.343000+00:00'
+        msg_timestamp = message.get("timestamp")
+        if not msg_timestamp:
+            return None
+
+        # Parse the ISO format string correctly.
+        # Python 3.11's fromisoformat handles standard Z/+00:00 well.
+        # But we can also use datetime.strptime if needed.
+        # It's an ISO8601 string, we can use datetime.datetime.fromisoformat
+        dt_utc = datetime.datetime.fromisoformat(msg_timestamp)
         now = datetime.datetime.now(local_tz)
 
-        expire_dt = datetime.datetime.strptime(time_str, "%I:%M:%S %p").replace(
-            year=now.year, month=now.month, day=now.day
-        )
-        expire_dt = local_tz.localize(expire_dt)
-
-        # Fix 24h misalignment from Discord embed quirks
-        diff = expire_dt - now
-        if datetime.timedelta(hours=23, minutes=59) < diff < datetime.timedelta(hours=24, minutes=1):
-            expire_dt -= datetime.timedelta(days=1)
+        # The discord timestamp is when the message was sent.
+        # The embed says: End: 12:57:49 AM (**28m 44s**)
+        # Let's extract the exact remaining time from the string
+        duration_match = re.search(r'\*\*(?:(\d+)m\s*)?(?:(\d+)s)?\*\*', description)
+        if duration_match:
+            mins = int(duration_match.group(1) or 0)
+            secs = int(duration_match.group(2) or 0)
+            expire_dt = dt_utc + datetime.timedelta(minutes=mins, seconds=secs)
+            expire_dt = expire_dt.astimezone(local_tz)
+        else:
+            # Fallback to older logic just in case
+            time_str = time_match.group(1).strip()
+            expire_dt = datetime.datetime.strptime(time_str, "%I:%M:%S %p").replace(
+                year=now.year, month=now.month, day=now.day
+            )
+            expire_dt = local_tz.localize(expire_dt)
+            # Fix 24h misalignment
+            diff = expire_dt - now
+            if datetime.timedelta(hours=23, minutes=59) < diff < datetime.timedelta(hours=24, minutes=1):
+                expire_dt -= datetime.timedelta(days=1)
 
         sprite_path = download_sprite(name)
 
